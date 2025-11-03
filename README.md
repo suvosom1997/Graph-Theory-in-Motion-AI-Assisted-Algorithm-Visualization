@@ -147,8 +147,6 @@ graph-theory-visualizer/
 ├── app.py                 # Main application file
 ├── requirements.txt       # Python dependencies
 ├── .env                   # Environment variables (not in repo)
-├── .env.example           # Environment variables template
-├── .gitignore            # Git ignore file
 ├── LICENSE               # MIT License
 └── README.md             # Documentation
 ```
