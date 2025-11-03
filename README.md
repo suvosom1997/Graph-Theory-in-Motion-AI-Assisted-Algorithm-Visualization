@@ -55,10 +55,7 @@ An interactive web application that visualizes graph algorithms with step-by-ste
 ### Installation
 
 1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/graph-theory-visualizer.git
-   cd graph-theory-visualizer
-   ```
+
 
 2. **Install dependencies**
    ```bash
