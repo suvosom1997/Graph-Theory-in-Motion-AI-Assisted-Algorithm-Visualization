@@ -49,7 +49,7 @@ An interactive web application that visualizes graph algorithms with step-by-ste
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.10 or higher
 - OpenAI API key (optional, for AI explanations)
 
 ### Installation
