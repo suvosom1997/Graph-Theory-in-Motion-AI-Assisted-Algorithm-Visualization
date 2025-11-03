@@ -33,6 +33,18 @@ An interactive web application that visualizes graph algorithms with step-by-ste
 - Detailed algorithm status panel
 - Real-time distance/queue/stack monitoring
 
+## Screenshots
+
+### Screenshot 1
+![Screenshot 1](https://github.com/user-attachments/assets/291d9f6c-ac1f-4bc9-a83a-0ee439606a0a)
+
+### Screenshot 2
+![Screenshot 2](https://github.com/user-attachments/assets/af0e5e8f-2290-41e3-bf20-54e65fe7b73e)
+
+### Screenshot 3
+![Screenshot 3](https://github.com/user-attachments/assets/3bb8205d-4281-44a8-965c-eb10cef3e73f)
+
+
 ## Getting Started
 
 ### Prerequisites
