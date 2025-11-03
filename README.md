@@ -2,7 +2,7 @@
 
 An interactive web application that visualizes graph algorithms with step-by-step execution and AI-powered explanations. Watch algorithms like Dijkstra's, BFS, DFS, and Prim's MST come to life through detailed animations and intelligent narration.
 
-![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
+![Python](https://img.shields.io/badge/python-3.11+-blue.svg)
 ![Streamlit](https://img.shields.io/badge/streamlit-1.28+-red.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
