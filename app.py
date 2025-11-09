@@ -946,8 +946,8 @@ def main():
                     with st.spinner("Transcribing audio with Whisper..."):
                         try:
                             with open(tmp_path, 'rb') as af:
-                                # Use server-side OpenAI client to transcribe
-                                resp = client.audio.transcriptions.create(file=af, model="whisper-1")
+                                # Use server-side OpenAI client to transcribe (force English)
+                                resp = client.audio.transcriptions.create(file=af, model="whisper-1", language="en")
                                 # SDK can return different structures; try common keys
                                 transcript = None
                                 if hasattr(resp, 'text'):

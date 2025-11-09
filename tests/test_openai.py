@@ -23,7 +23,8 @@ try:
         print("🔄 Testing Whisper API connectivity...")
         response = client.audio.transcriptions.create(
             model="whisper-1",
-            file=audio_file
+            file=audio_file,
+            language="en"
         )
 
         print("\n✅ Whisper API Connection Successful!")
