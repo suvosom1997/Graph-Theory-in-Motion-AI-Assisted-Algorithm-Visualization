@@ -1,0 +1,10 @@
+# Ignore environment files that may contain secrets
+.env
+
+# Byte-compiled / cached files
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+env/

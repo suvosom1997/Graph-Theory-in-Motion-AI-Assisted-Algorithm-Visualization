@@ -7,16 +7,115 @@ from openai import OpenAI
 import os
 from dotenv import load_dotenv
 from collections import deque
+import tempfile
+import sounddevice as sd
+import soundfile as sf
+import time
+from voice.voice_utils import parse_voice_command
 
-# Load environment variables
+# Set page config for a wider layout
+st.set_page_config(layout="wide", page_title="Graph Theory in Motion")
+
+# Initialize session state variables if they don't exist
+if 'algorithm_running' not in st.session_state:
+    st.session_state.algorithm_running = False
+if 'algorithm_steps' not in st.session_state:
+    st.session_state.algorithm_steps = []
+if 'current_step' not in st.session_state:
+    st.session_state.current_step = 0
+if 'last_narrated_step' not in st.session_state:
+    st.session_state.last_narrated_step = None
+if 'voice_params_to_apply' not in st.session_state:
+    st.session_state.voice_params_to_apply = None
+if 'apply_voice_success' not in st.session_state:
+    st.session_state.apply_voice_success = None
+if 'apply_voice_errors' not in st.session_state:
+    st.session_state.apply_voice_errors = None
+
+# Apply any pending voice parameters BEFORE widget creation
+if st.session_state.voice_params_to_apply:
+    params = st.session_state.voice_params_to_apply
+    # Reset so we don't re-apply on next rerun
+    st.session_state.voice_params_to_apply = None
+    
+    # Try applying parsed parameters
+    applied = []
+    errors = []
+
+    # Nodes (accept various capitalizations)
+    node_val = None
+    if 'nodes' in params:
+        node_val = params.get('nodes')
+    elif 'Nodes' in params:
+        node_val = params.get('Nodes')
+    elif 'node_count' in params:
+        node_val = params.get('node_count')
+
+    if node_val is not None:
+        try:
+            st.session_state.num_nodes = int(node_val)
+            applied.append(f"num_nodes={int(node_val)}")
+        except Exception as e:
+            errors.append(f"nodes: {e}")
+
+    # Connectivity
+    if 'connectivity' in params:
+        try:
+            st.session_state.connectivity = float(params['connectivity'])
+            applied.append(f"connectivity={float(params['connectivity'])}")
+        except Exception as e:
+            errors.append(f"connectivity: {e}")
+    elif 'edge_density' in params:
+        try:
+            st.session_state.connectivity = float(params['edge_density'])
+            applied.append(f"connectivity={float(params['edge_density'])}")
+        except Exception as e:
+            errors.append(f"edge_density: {e}")
+
+    # Algorithm
+    if 'algorithm' in params:
+        algo_val = params['algorithm']
+        algo_options = ["Dijkstra's Shortest Path", "Breadth-First Search (BFS)", 
+                       "Depth-First Search (DFS)", "Prim's Minimum Spanning Tree"]
+        chosen = None
+        if algo_val in algo_options:
+            chosen = algo_val
+        else:
+            # try fuzzy matching by lowercasing
+            for opt in algo_options:
+                if algo_val.lower() in opt.lower() or opt.lower() in algo_val.lower():
+                    chosen = opt
+                    break
+        if chosen:
+            st.session_state.algorithm = chosen
+            applied.append(f"algorithm={chosen}")
+
+    # Start / End nodes
+    if 'start_node' in params:
+        try:
+            st.session_state.start = int(params['start_node'])
+            applied.append(f"start={int(params['start_node'])}")
+        except Exception as e:
+            errors.append(f"start_node: {e}")
+
+    if 'end_node' in params:
+        try:
+            st.session_state.end = int(params['end_node'])
+            applied.append(f"end={int(params['end_node'])}")
+        except Exception as e:
+            errors.append(f"end_node: {e}")
+
+    st.session_state.apply_voice_success = applied if applied else None
+    st.session_state.apply_voice_errors = errors if errors else None
+
+# Load OpenAI API key from environment and initialize client
 load_dotenv()
-
-# Initialize OpenAI client
 client = None
-if os.getenv("OPENAI_API_KEY"):
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-st.set_page_config(page_title="Graph Theory AI Visualizer", layout="wide")
+try:
+    client = OpenAI()  # will use OPENAI_API_KEY from environment
+except Exception as e:
+    st.warning("OpenAI client not initialized (needed for voice and AI explanations)")
+    print(f"OpenAI init error: {e}")
 
 def get_ai_narration(algorithm_name, step_description, graph_info):
     """Get AI narration for algorithm steps"""
@@ -792,8 +891,9 @@ def main():
             ["Random", "Small World", "Scale-Free", "Complete", "Grid"]
         )
         
-        num_nodes = st.slider("Number of Nodes", 5, 20, 10)
-        connectivity = st.slider("Connectivity", 0.1, 1.0, 0.3, 0.1)
+        # Use session_state keys so voice commands can update these values programmatically
+        num_nodes = st.slider("Number of Nodes", 5, 20, st.session_state.get('num_nodes', 10), key="num_nodes")
+        connectivity = st.slider("Connectivity", 0.1, 1.0, st.session_state.get('connectivity', 0.3), 0.1, key="connectivity")
         
         layout_type = st.selectbox(
             "Layout", 
@@ -807,14 +907,95 @@ def main():
             "Visual Style",
             ["modern", "classic", "minimal"]
         )
+        st.divider()
+        
+        # Add TTS toggle
+        st.header("🔊 Narration")
+        if 'tts_enabled' not in st.session_state:
+            st.session_state.tts_enabled = False
+        st.session_state.tts_enabled = st.toggle("Enable Voice Narration", value=st.session_state.tts_enabled)
+        
+        st.divider()
+        st.header("Voice Command")
+        rec_seconds = st.slider("Record duration (seconds)", 1, 8, 4)
+        if st.button("🎤 Record Voice Command", width="stretch"):
+            # Local recording path
+            tmp_path = None
+            try:
+                with st.spinner("Recording..."):
+                    tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+                    tmp_path = tmp.name
+                    tmp.close()
+                    fs = 44100
+                    sd.default.samplerate = fs
+                    sd.default.channels = 1
+                    recording = sd.rec(int(rec_seconds * fs), samplerate=fs, channels=1, dtype='float32')
+                    sd.wait()
+                    sf.write(tmp_path, recording, fs)
+                    time.sleep(0.2)
+                st.success(f"Saved recording to {tmp_path}")
+            except Exception as e:
+                st.error(f"Recording failed: {e}")
+                tmp_path = None
+
+            if tmp_path:
+                # Transcribe with OpenAI Whisper via existing client
+                if not client:
+                    st.error("OpenAI client not configured - set OPENAI_API_KEY in your environment")
+                else:
+                    with st.spinner("Transcribing audio with Whisper..."):
+                        try:
+                            with open(tmp_path, 'rb') as af:
+                                # Use server-side OpenAI client to transcribe
+                                resp = client.audio.transcriptions.create(file=af, model="whisper-1")
+                                # SDK can return different structures; try common keys
+                                transcript = None
+                                if hasattr(resp, 'text'):
+                                    transcript = resp.text
+                                elif isinstance(resp, dict) and 'text' in resp:
+                                    transcript = resp['text']
+                                else:
+                                    # fallback: try str()
+                                    transcript = str(resp)
+                        except Exception as e:
+                            st.error(f"Transcription error: {e}")
+                            transcript = None
+
+                    if transcript:
+                        st.info(f"Transcript: {transcript}")
+                        params = parse_voice_command(transcript)
+                        st.write("Detected parameters:", params)
+                        
+                        # Store params to apply on next run (before widgets are created)
+                        if params:
+                            st.session_state.voice_params_to_apply = params
+                            st.rerun()
+
+                        # Show status from previous apply attempt if any
+                        if st.session_state.apply_voice_success:
+                            st.success("Applied: " + ", ".join(st.session_state.apply_voice_success))
+                            st.session_state.apply_voice_success = None
+                        
+                        if st.session_state.apply_voice_errors:
+                            st.error("Errors while applying params: " + 
+                                   ", ".join(st.session_state.apply_voice_errors))
+                            st.session_state.apply_voice_errors = None
     
     G = create_graph(graph_type, num_nodes, connectivity)
     pos = get_node_positions(G, layout_type)
     
     st.sidebar.header(" Algorithm")
+    algo_options = ["Dijkstra's Shortest Path", "Breadth-First Search (BFS)", "Depth-First Search (DFS)", "Prim's Minimum Spanning Tree"]
+    default_alg = st.session_state.get('algorithm', algo_options[0])
+    try:
+        default_index = algo_options.index(default_alg) if default_alg in algo_options else 0
+    except Exception:
+        default_index = 0
     algorithm = st.sidebar.selectbox(
         "Choose Algorithm",
-        ["Dijkstra's Shortest Path", "Breadth-First Search (BFS)", "Depth-First Search (DFS)", "Prim's Minimum Spanning Tree"]
+        algo_options,
+        index=default_index,
+        key="algorithm"
     )
     
     if algorithm == "Prim's Minimum Spanning Tree":
@@ -829,7 +1010,7 @@ def main():
     
     st.sidebar.header(" Controls")
     
-    if st.sidebar.button("▶Start Algorithm", use_container_width=True):
+    if st.sidebar.button("▶Start Algorithm", width="stretch"):
         if algorithm == "Prim's Minimum Spanning Tree":
             st.session_state.algorithm_steps = prims_algorithm(G, start_node)
             st.session_state.current_step = 0
@@ -851,14 +1032,14 @@ def main():
         
         col1, col2 = st.sidebar.columns(2)
         with col1:
-            if st.button("⏮Previous", use_container_width=True) and st.session_state.current_step > 0:
+            if st.button("⏮Previous", width="stretch") and st.session_state.current_step > 0:
                 st.session_state.current_step -= 1
         
         with col2:
-            if st.button("⏭Next", use_container_width=True) and st.session_state.current_step < len(st.session_state.algorithm_steps) - 1:
+            if st.button("⏭Next", width="stretch") and st.session_state.current_step < len(st.session_state.algorithm_steps) - 1:
                 st.session_state.current_step += 1
         
-        if st.sidebar.button("Reset", use_container_width=True):
+        if st.sidebar.button("Reset", width="stretch"):
             st.session_state.current_step = 0
             st.session_state.algorithm_running = False
             st.session_state.algorithm_steps = []
@@ -879,7 +1060,7 @@ def main():
                 current_step_data = st.session_state.algorithm_steps[st.session_state.current_step]
         
         fig = visualize_graph_animated(G, pos, current_step_data, animation_style)
-        st.plotly_chart(fig, use_container_width=True, key="main_graph")
+        st.plotly_chart(fig, width="stretch", key="main_graph")
     
     with col2:
         st.subheader("Algorithm Status")
@@ -891,7 +1072,31 @@ def main():
                 st.markdown(f"### {step.get('description', '')}")
                 
                 if step.get('narration'):
-                    st.info(step['narration'])
+                    narration_text = step['narration']
+                    st.info(narration_text)
+                    
+                    # Generate and play TTS if enabled
+                    if st.session_state.tts_enabled and client and st.session_state.current_step != st.session_state.last_narrated_step:
+                        try:
+                            # Generate speech
+                            audio_response = client.audio.speech.create(
+                                model="tts-1",
+                                voice="alloy",
+                                input=narration_text
+                            )
+                            
+                            # Save to temp file
+                            temp_path = "temp_narration.mp3"
+                            audio_response.stream_to_file(temp_path)
+                            
+                            # Play audio using sounddevice and soundfile
+                            data, samplerate = sf.read(temp_path)
+                            sd.play(data, samplerate)
+                            
+                            # Update last narrated step
+                            st.session_state.last_narrated_step = st.session_state.current_step
+                        except Exception as e:
+                            st.error(f"TTS Error: {str(e)}")
                 
                 st.divider()
                 
@@ -948,7 +1153,7 @@ def main():
                             "Dist": dist_str
                         })
                     
-                    st.dataframe(distances_data, hide_index=True, use_container_width=True)
+                    st.dataframe(distances_data, hide_index=True, width="stretch")
                 
                 if algorithm in ["Breadth-First Search (BFS)", "Depth-First Search (DFS)"]:
                     st.markdown("#### Visited Nodes:")
