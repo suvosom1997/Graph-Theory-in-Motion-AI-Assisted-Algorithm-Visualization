@@ -180,6 +180,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Visualizations powered by Plotly
 - AI explanations via OpenAI API
 
+## Contributors 
+| Student Name             | Roll Number |
+| ------------------------ | ----------- |
+| Suvodip Som              | M23CSA533   |
+| Torsha Chatterjee        | M23CSA536   |
+| Swapnil Adak             | M23CSA534   |
+| Rohan Frederick          | M23CSA525   |
+| Chandra Mohan Singh Negi | M23CSA512   |
+| Anindya Bandopadhyay     | M23CSA508   |
 ---
 
 Made with Python | Star this repo if you find it helpful
