@@ -6,6 +6,10 @@ An interactive web application that visualizes graph algorithms with step-by-ste
 ![Streamlit](https://img.shields.io/badge/streamlit-1.28+-red.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
+#Project Overview
+The project provides dynamic, visual representations of core graph algorithms—such as Dijkstra’s, BFS, DFS, and Prim’s MST—combined with AI-generated textual and voice explanations. Users can adjust graph types, node counts, connectivity, and layouts to explore how algorithmic decisions evolve at each step.
+
+
 ## Features
 
 ### Algorithms
